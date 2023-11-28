@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="www.dream.bbs.party.mapper.PartyMapper">
+	<resultMap id="rmPartyVO" extends="nsEntity.rmMasterEntity"
+		type="www.dream.bbs.party.model.PartyVO">
+		<result property="name" column="name" />
+		<result property="nick" column="nick" />
+		<result property="pwd" column="pwd" />
+		<!-- 1:N query. 성능 향상 -->
+		<collection property="listContactPoint" columnPrefix="cp_"
+			resultMap="rmContactPointVO">
+		</collection>
+		
+		<!--  인가(Authorization) 처리를 위한 것임. -->
+		<collection property="listAccountability" columnPrefix="role_"
+			resultMap="rmAccountabilityVO">
+		</collection>
+		
+		<discriminator javaType="String" column="descrim">
+			<case value="Person" resultMap="rmPersonVO" />
+			<case value="Organization" resultMap="rmOrganizationVO" />
+		</discriminator>
+	</resultMap>
+
+	<resultMap id="rmPersonVO" extends="rmPartyVO"
+		type="www.dream.bbs.party.model.PersonVO" >
+		<result property="sex" column="sex" />
+	</resultMap>
+	
+	<resultMap id="rmOrganizationVO" extends="rmPartyVO"
+		type="www.dream.bbs.party.model.OrganizationVO" />
+
+	<resultMap id="rmContactPointVO"
+		type="www.dream.bbs.party.model.ContactPointVO">
+		<id property="cpType" column="cp_type" />
+		<result property="cpVal" column="cp_val" />
+	</resultMap>
+	
+	<resultMap id="rmAccountabilityVO" extends="nsEntity.rmMasterEntity"
+		type="www.dream.bbs.party.model.AccountabilityVO">
+		<result property="accountType" column="account_type" />
+		<result property="ownerId" column="owner_id" />
+		<result property="responsId" column="respons_id" />
+		<result property="alive" column="alive" />
+	</resultMap>
+
+	<!-- 	public List<PersonVO> listAllMember(String ownerId); -->
+	<select id="listAllMember" resultMap="rmPartyVO">
+		SELECT mem.*, cp.cp_type cp_cp_type, cp.cp_val cp_cp_val
+		  FROM T_Accountability role, T_party mem
+				LEFT OUTER JOIN T_contact_Point cp
+		    on mem.id = cp.owner_id
+		 where role.owner_id = #{ownerId}
+		   and role.account_type = 'member'
+		   and role.alive = true
+		   and role.respons_id = mem.id
+	</select>
+	<!-- public PartyVO findByNick(String nick); -->
+	<select id="findByNick" resultMap="rmPartyVO">
+		SELECT p.*, 
+			role.id role_id, role.account_type role_account_type, role.owner_id role_owner_id, 
+				role.alive role_alive, role.reg_dt role_reg_dt, role.upt_dt role_upt_dt, 
+			cp.cp_type cp_cp_type, cp.cp_val cp_cp_val
+		  FROM T_party p 
+		    join T_Accountability role on p.id = role.respons_id
+		    LEFT OUTER JOIN T_contact_Point cp
+		    on p.id = cp.owner_id
+		 where p.nick = #{nick}
+		   and role.alive = true
+	</select>
+
+	<!-- public boolean isValidNick(String nick); -->
+	<select id="isValidNick" resultType="boolean">
+		SELECT count(1) = 0
+		  FROM t_party p
+		 where p.nick = binary(#{nick})
+	</select>
+
+	<!-- 	public int createOrganization(OrganizationVO organization); -->
+	<insert id="createOrganization">
+		<selectKey keyProperty="id" resultType="String"
+			order="BEFORE">
+			select NEXT_PK('s_party')
+		</selectKey>
+		INSERT INTO T_party(id, descrim, name, nick, pwd)
+		VALUES (#{id}, 'Organization', #{name}, #{nick}, #{pwd});
+
+		INSERT INTO T_contact_Point(owner_id, cp_type, cp_val)
+		VALUES
+		<foreach item="cp" collection="listContactPoint" separator=","
+			close=";">
+			(#{id}, #{cp.cpType}, #{cp.cpVal})
+		</foreach>
+	</insert>
+
+	<!-- 	public int createPerson(PersonVO person); OGNL 사용함 -->
+	<insert id="createPerson">
+		<selectKey keyProperty="id" resultType="String"
+			order="BEFORE">
+			select NEXT_PK('s_party')
+		</selectKey>
+
+		INSERT INTO T_party(id, descrim, name, nick, pwd, sex)
+		VALUES (#{id}, 'Person', #{name}, #{nick}, #{pwd}, #{sex});
+
+	  <if test="!(listContactPoint.isEmpty())">
+			INSERT INTO T_contact_Point(owner_id, cp_type, cp_val)
+			VALUES
+			<foreach item="cp" collection="listContactPoint" separator=","
+				close=";">
+				(#{id}, #{cp.cpType}, #{cp.cpVal})
+			</foreach>
+	  </if>
+	</insert>
+	
+	<!-- 	public int createAccountability(AccountabilityVO accountability); -->
+	<insert id="createAccountability">
+		<selectKey keyProperty="id" resultType="String"
+			order="BEFORE">
+			select NEXT_PK('s_accountability')
+		</selectKey>
+		INSERT INTO T_Accountability(id, account_type, owner_id, respons_id)
+		VALUES (#{id}, #{accountType}, #{ownerId}, #{responsId});
+	</insert>
+</mapper>

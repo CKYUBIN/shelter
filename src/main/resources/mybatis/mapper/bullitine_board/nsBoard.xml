@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="www.dream.bbs.board.mapper.BoardMapper">
+	<resultMap id="rmBoardVO" extends="nsEntity.rmEntity" type="www.dream.bbs.board.model.BoardVO">
+		<result property="name" column="name" />
+		<result property="descrip" column="descrip" />
+		<result property="postCnt" column="post_cnt" />
+	</resultMap>
+
+	<!-- public List<BoardVO> listAll(); -->
+	<select id="listAll" resultMap="rmBoardVO">
+	select id, name, descrip, post_cnt
+	  from T_bulitine_board
+	</select>
+	
+	<!-- public BoardVO findById(String id); -->
+	<select id="findById" resultMap="rmBoardVO">
+	select id, name, descrip, post_cnt
+	  from T_bulitine_board
+	 where id = #{id}
+	</select>
+	
+</mapper>

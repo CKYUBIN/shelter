@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="nsEntity">
+	<resultMap id="rmEntity" type="www.dream.bbs.framework.model.Entity">
+		<!-- id, idArg : 동일 객체 판별하여 다시 만들지 말자 
+		<constructor>
+			<idArg javaType="String" column="id"/>
+		</constructor -->
+		<id property="id" column="id" />
+	</resultMap>
+
+	<resultMap id="rmMasterEntity" extends="rmEntity"
+		type="www.dream.bbs.framework.model.MasterEntity">
+		<result property="regDt" column="reg_dt" />
+		<result property="uptDt" column="upt_dt" />
+	</resultMap>
+</mapper>

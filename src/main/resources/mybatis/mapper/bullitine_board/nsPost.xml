@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="www.dream.bbs.board.mapper.PostMapper">
+	<!-- resultMap : PROJECTION 결과를 객체 속성에 바인딩 -->
+	<resultMap id="rmReplyVO" extends="nsEntity.rmMasterEntity"
+		type="www.dream.bbs.board.model.ReplyVO">
+		<result property="content" column="content" />
+		<result property="hTier" column="h_tier" />
+		<!-- association : One 2 One 관계까지 속성에 한번에 넣기. 예 : 게시글의 작성자 누구? -->
+		<!-- columnPrefix : COLUMN 이름 중첩 시 그 해결방안 -->
+		<!-- notNullColumn : 정보가 있어야 객체 만들지요. 회원 탈퇴 시 null 처리 -->
+		<association property="writer" columnPrefix="w_" notNullColumn="id"
+			resultMap="www.dream.bbs.party.mapper.PartyMapper.rmPartyVO" />
+		<!-- discriminator : 상속 구조 해결 책 -->
+		<discriminator javaType="String" column="descrim">
+			<case value="post" resultMap="rmPostVO" />
+		</discriminator>
+	</resultMap>
+
+	<!-- extends : 확장하기 = 상속 -->
+	<resultMap id="rmPostVO" extends="rmReplyVO"
+		type="www.dream.bbs.board.model.PostVO">
+		<result property="title" column="TITLE" />
+		<result property="readCnt" column="read_cnt" />
+		<result property="likeCnt" column="like_cnt" />
+		<result property="disCnt" column="dis_cnt" />
+		<association property="boardVO" 
+			columnPrefix="bb_"
+			resultMap="www.dream.bbs.board.mapper.BoardMapper.rmBoardVO" />
+	</resultMap>
+	
+	<!-- public long getFoundRows(); -->
+	<select id="getFoundRows" resultType="long">
+		SELECT FOUND_ROWS()
+	</select>
+	<!-- public List<PostVO> listAllPost(@Param("boardId") String boardId, @Param("paging") PagingDTO paging); -->
+	<select id="listAllPost" resultMap="rmPostVO">
+	select SQL_CALC_FOUND_ROWS p.*, w.id w_id, w.descrim w_descrim, w.name w_name, w.sex w_sex, w.reg_dt w_reg_dt, w.upt_dt w_upt_dt
+	  from T_reply p LEFT OUTER JOIN T_party w
+	       ON p.writer_id = w.id
+	 where p.bb_id = #{boardId}
+	 order by p.id desc
+	 limit #{paging.limit} offset #{paging.offset}
+	</select>
+	
+	<!-- public List<PostVO> searchByTfIdf(@Param("boardId") String boardId, @Param("arrSearch") String[] arrSearch, @Param("paging") PagingDTO paging); -->
+	<select id="searchByTfIdf" resultMap="rmPostVO">
+	select SQL_CALC_FOUND_ROWS
+			p.*, w.id w_id, w.descrim w_descrim, w.name w_name, w.sex w_sex, w.reg_dt w_reg_dt, w.upt_dt w_upt_dt
+	  from (select p.id pid, sum(r.tf) * log(b.post_cnt / (count(p.id) + 1)) importance
+		  from t_tag t, t_tgt_tag r, T_reply p, t_bulitine_board b
+	 WHERE t.word IN 
+			<foreach item="word" collection="arrSearch" open="(" separator="," close=")">
+				#{word}
+			</foreach>
+		   and t.id = r.tag_id
+		   and r.tgt_name = 'T_reply'
+		   and r.tgt_id = p.id
+		   and p.descrim = 'post'
+		   and p.bb_id = b.id
+		   and b.id = #{boardId}
+	  group by p.id) pst,
+	  T_reply p LEFT OUTER JOIN T_party w
+	       ON p.writer_id = w.id
+	 where pst.pid = p.id
+	 order by pst.importance desc
+	 limit #{paging.limit} offset #{paging.offset}
+	</select>
+
+	<!-- public List<PostVO> searchByTfIdf(@Param("boardId") String boardId, @Param("arrSearch") String[] arrSearch); 
+	<select id="searchByTfIdf" resultMap="rmPostVO">
+	select p.*, w.id w_id, w.descrim w_descrim, w.name w_name, w.sex w_sex, w.reg_dt w_reg_dt, w.upt_dt w_upt_dt
+	  from (select p.id pid, sum(r.tf) * log(b.post_cnt / (count(p.id) + 1)) importance
+		  from t_tag t, t_tgt_tag r, T_reply p, t_bulitine_board b
+	 WHERE t.word IN 
+			<foreach item="word" collection="arrSearch" open="(" separator="," close=")">
+				#{word}
+			</foreach>
+		   and t.id = r.tag_id
+		   and r.tgt_name = 'T_reply'
+		   and r.tgt_id = p.id
+		   and p.bb_id = b.id
+		   and b.id = #{boardId}
+	  group by p.id) pst,
+	  T_reply p LEFT OUTER JOIN T_party w
+	       ON p.writer_id = w.id
+	 where pst.pid = p.id
+	 order by pst.importance desc
+	</select -->
+
+	<!-- select id="searchByTfIdf" resultMap="rmPostVO">
+	                    역문서_빈도, 전체_문서의_수 해당_단어를_포함한_문서의_수
+	select p.id, sum(r.tf) * log(b.post_cnt / (count(p.id) + 1))
+	  from t_tag t, t_tgt_tag r, T_reply p, t_bulitine_board b
+	 WHERE t.word IN ('사랑', '강아지')
+	   and t.id = r.tag_id
+	   and r.tgt_name = 'T_reply'
+	   and r.tgt_id = p.id
+	   and p.bb_id = b.id
+	   and b.id = '000n'
+  group by p.id
+	</select -->
+
+	<!-- select id="searchByTfIdf" resultMap="rmPostVO">
+	select r.tgt_id post_id, sum(r.tf) tf
+	  from t_tag t, t_tgt_tag r, T_reply p
+	 WHERE t.word IN ('사랑', '강아지')
+		AND t.id = r.tag_id
+		AND r.tgt_name = 'T_reply'
+		AND r.tgt_id = p.id
+		AND p.bb_id = '000n'
+	group by r.tgt_id	
+	</select -->
+	<!-- select id="searchByTfIdf" resultMap="rmPostVO">
+	select p.*, w.id w_id, w.descrim w_descrim, w.name w_name, w.sex w_sex, w.reg_dt w_reg_dt, w.upt_dt w_upt_dt
+	  from t_tag t, t_tgt_tag r,
+	   	 T_reply p LEFT OUTER JOIN T_party w
+	       ON p.writer_id = w.id
+	 WHERE t.word IN 
+			<foreach item="word" collection="arrSearch" open="(" separator="," close=")">
+				#{word}
+			</foreach>
+		AND t.id = r.tag_id
+		AND r.tgt_name = 'T_reply'
+		AND r.tgt_id = p.id
+		AND p.bb_id = #{boardId}	
+	</select-->
+
+	<!-- 	public List<ReplyVO> findById(String id); -->
+	<select id="findById" resultMap="rmReplyVO">
+	select r.*, 
+		w.id w_id, w.descrim w_descrim, w.name w_name, w.nick w_nick, w.sex w_sex,
+		 w.reg_dt w_reg_dt, w.upt_dt w_upt_dt
+	  from T_reply r LEFT OUTER JOIN T_party w
+	       ON r.writer_id = w.id
+	 where r.id like CONCAT(#{id}, '%');
+	</select>
+	
+	<!-- public void incReadCnt(String id); -->
+	<update id="incReadCnt">
+	update T_reply
+	   set 	upt_dt = upt_dt,
+			read_cnt = read_cnt + 1
+	 where id = #{id}
+	</update>
+	
+	<!-- public int createPost(PostVO post);-->
+	<insert id="createPost">
+		<selectKey keyProperty="id" resultType="String" order="BEFORE">
+    		select NEXT_PK('s_reply')
+  		</selectKey>
+		INSERT INTO T_reply(id, h_tier, descrim, bb_id, writer_id, TITLE, content)
+		VALUES (#{id}, 0, 'post', #{boardVO.id}, #{writer.id}, #{title}, #{content});
+	</insert>
+	<!-- public int createReply(@Param("parent") ReplyVO parent, @Param("reply") ReplyVO reply);-->
+	<insert id="createReply">
+		<selectKey keyProperty="reply.id" resultType="String" order="BEFORE">
+    		select CONCAT(#{parent.id}, NEXT_PK('s_reply'))  
+  		</selectKey>
+		INSERT INTO T_reply(id, h_tier, descrim, writer_id, content)
+		VALUES (#{reply.id}, #{parent.hTier} + 1, 'reply', #{reply.writer.id}, #{reply.content});
+	</insert>
+	
+	<!-- public int updatePost(PostVO post);-->
+	<update id="updatePost">
+	update T_reply
+	   set TITLE = #{title},
+	       content = #{content}
+	 where id = #{id} 
+	</update>
+	<!-- public int updateReply(ReplyVO reply);-->
+	<update id="updateReply">
+	update T_reply
+	   set content = #{content}
+	 where id = #{id} 
+	</update>
+	
+	<!-- public int deleteReply(String id);-->
+	<delete id="deleteReply">
+	delete from T_reply
+	 where id like CONCAT(#{id}, '%');
+	</delete>
+</mapper>
